@@ -45,9 +45,7 @@ export class CurveAnimation extends glAnimation implements ReplResult {
 }
 
 export class CurveModuleState implements ModuleState {
-  constructor() {
-    this.drawnCurves = [];
-  }
+  constructor(public drawnCurves: (CurveDrawn | CurveAnimation)[]) {}
 
-  public drawnCurves: (CurveDrawn | CurveAnimation)[];
+  public tabsToSpawn = () => (this.drawnCurves.length > 0 ? ['Curve'] : []);
 }

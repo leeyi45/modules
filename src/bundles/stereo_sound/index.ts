@@ -1,4 +1,4 @@
-import { ModuleContext } from 'js-slang';
+import { ModuleState } from 'js-slang';
 import {
   // Constructor/Accessors/Typecheck
   make_stereo_sound,
@@ -47,25 +47,14 @@ import {
 } from './functions';
 import { StereoSoundsModuleState } from './types';
 
-export default function sounds(params, contexts: Map<string, ModuleContext>) {
+export default function sounds(params, contexts: Map<string, ModuleState>) {
   // Update the module's global context
-  let moduleContext = contexts.get('stereo_sound');
-
-  if (moduleContext == null) {
-    moduleContext = {
-      tabs: [],
-      state: {
-        audioPlayed,
-      },
-    };
-
-    contexts.set('stereo_sound', moduleContext);
-  } else if (moduleContext.state == null) {
-    moduleContext.state = {
-      audioPlayed,
-    };
+  let moduleState: StereoSoundsModuleState;
+  if (contexts.has('stereo_sound')) {
+    moduleState = contexts.get('stereo_sound') as StereoSoundsModuleState;
   } else {
-    (moduleContext.state as StereoSoundsModuleState).audioPlayed = audioPlayed;
+    moduleState = new StereoSoundsModuleState(audioPlayed);
+    contexts.set('stereo_sound', moduleState);
   }
 
   return {

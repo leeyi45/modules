@@ -1,4 +1,4 @@
-import { ModuleContext } from 'js-slang';
+import { ModuleState } from 'js-slang';
 import { CurveModuleState } from './types';
 import {
   make_point,
@@ -48,26 +48,15 @@ import {
 
 export default function curves(
   params: any,
-  context: Map<string, ModuleContext>
+  contexts: Map<string, ModuleState>
 ) {
   // Update the module's global context
-  let moduleContext = context.get('curve');
-
-  if (moduleContext == null) {
-    moduleContext = {
-      tabs: [],
-      state: {
-        drawnCurves,
-      },
-    };
-
-    context.set('curve', moduleContext);
-  } else if (moduleContext.state == null) {
-    moduleContext.state = {
-      drawnCurves,
-    };
+  let moduleState: CurveModuleState;
+  if (contexts.has('curve')) {
+    moduleState = contexts.get('curve') as CurveModuleState;
   } else {
-    (moduleContext.state as CurveModuleState).drawnCurves = drawnCurves;
+    moduleState = new CurveModuleState(drawnCurves);
+    contexts.set('curve', moduleState);
   }
 
   return {

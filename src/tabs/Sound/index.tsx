@@ -13,31 +13,14 @@ import MultiItemDisplay from '../common/multi_item_display';
 
 export default {
   /**
-   * This function will be called to determine if the component will be
-   * rendered.
-   * @returns {boolean}
-   */
-  toSpawn: (context: DebuggerContext) => {
-    const moduleContext = context.context?.moduleContexts.get('sound');
-    if (moduleContext == null) {
-      return false;
-    }
-
-    const moduleState = moduleContext.state as SoundsModuleState;
-    if (moduleState == null) {
-      return false;
-    }
-
-    return moduleState.audioPlayed.length > 0;
-  },
-  /**
    * This function will be called to render the module tab in the side contents
    * on Source Academy frontend.
    * @param {DebuggerContext} context
    */
   body: (context: DebuggerContext) => {
-    const moduleContext = context.context?.moduleContexts.get('sound');
-    const moduleState = (moduleContext!.state as SoundsModuleState).audioPlayed;
+    const moduleState = (context.context?.moduleContexts.get(
+      'sound'
+    ) as SoundsModuleState).audioPlayed;
     const elements = moduleState.map((audio) => (
       <audio
         src={audio.dataUri}

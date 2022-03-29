@@ -11,22 +11,10 @@ import AnimationCanvas from '../common/animation_canvas';
 import WebGLCanvas from '../common/webgl_canvas';
 
 export default {
-  toSpawn: (context: DebuggerContext) => {
-    const moduleContext = context.context?.moduleContexts.get('curve');
-    if (moduleContext == null) {
-      return false;
-    }
-
-    const moduleState = moduleContext.state as CurveModuleState;
-    if (moduleState == null) {
-      return false;
-    }
-
-    return moduleState.drawnCurves.length > 0;
-  },
   body: (context: DebuggerContext) => {
-    const moduleContext = context.context?.moduleContexts.get('curve');
-    const moduleState = moduleContext!.state as CurveModuleState;
+    const moduleState = context.context?.moduleContexts.get(
+      'curve'
+    ) as CurveModuleState;
 
     const canvases = moduleState!.drawnCurves.map((curve) => {
       if (glAnimation.isAnimation(curve)) {

@@ -373,4 +373,6 @@ export class RuneAnimation extends glAnimation implements ReplResult {
 
 export class RunesModuleState implements ModuleState {
   constructor(public drawnRunes: (DrawnRune | RuneAnimation)[] = []) {}
+
+  public tabsToSpawn = () => (this.drawnRunes.length > 0 ? ['Rune'] : []);
 }

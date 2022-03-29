@@ -19,4 +19,7 @@ export type AudioPlayed = {
 };
 export class StereoSoundsModuleState implements ModuleState {
   constructor(public audioPlayed: AudioPlayed[]) {}
+
+  public tabsToSpawn = () =>
+    this.audioPlayed.length > 0 ? ['StereoSound'] : [];
 }

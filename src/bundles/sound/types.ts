@@ -19,9 +19,7 @@ export type AudioPlayed = {
 };
 
 export class SoundsModuleState implements ModuleState {
-  constructor() {
-    this.audioPlayed = [];
-  }
+  constructor(public audioPlayed: AudioPlayed[]) {}
 
-  public audioPlayed: AudioPlayed[];
+  public tabsToSpawn = () => (this.audioPlayed.length > 0 ? ['Sound'] : []);
 }

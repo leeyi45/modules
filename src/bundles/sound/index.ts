@@ -1,4 +1,4 @@
-import { ModuleContext } from 'js-slang';
+import { ModuleState } from 'js-slang';
 import {
   // Constructor/Accessors/Typecheck
   make_sound,
@@ -40,25 +40,14 @@ import {
 } from './functions';
 import { SoundsModuleState } from './types';
 
-export default function sounds(params, context: Map<string, ModuleContext>) {
+export default function sounds(params, contexts: Map<string, ModuleState>) {
   // Update the module's global context
-  let moduleContext = context.get('sound');
-
-  if (moduleContext == null) {
-    moduleContext = {
-      tabs: [],
-      state: {
-        audioPlayed,
-      },
-    };
-
-    context.set('sound', moduleContext);
-  } else if (moduleContext.state == null) {
-    moduleContext.state = {
-      audioPlayed,
-    };
+  let moduleState: SoundsModuleState;
+  if (contexts.has('sound')) {
+    moduleState = contexts.get('sound') as SoundsModuleState;
   } else {
-    (moduleContext.state as SoundsModuleState).audioPlayed = audioPlayed;
+    moduleState = new SoundsModuleState(audioPlayed);
+    contexts.set('sound', moduleState);
   }
 
   return {

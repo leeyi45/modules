@@ -1,4 +1,4 @@
-import { ModuleContext } from 'js-slang';
+import { ModuleState } from 'js-slang';
 import {
   square,
   blank,
@@ -60,26 +60,14 @@ import { RunesModuleState } from './rune';
 
 export default function runes(
   params: Map<string, any>,
-  context: Map<string, ModuleContext>
+  contexts: Map<string, ModuleState>
 ) {
-  // Update the module's global context
-  let moduleContext = context.get('rune');
-
-  if (moduleContext == null) {
-    moduleContext = {
-      tabs: [],
-      state: {
-        drawnRunes,
-      },
-    };
-
-    context.set('rune', moduleContext);
-  } else if (moduleContext.state == null) {
-    moduleContext.state = {
-      drawnRunes,
-    };
+  let moduleState: RunesModuleState;
+  if (contexts.has('rune')) {
+    moduleState = contexts.get('rune') as RunesModuleState;
   } else {
-    (moduleContext.state as RunesModuleState).drawnRunes = drawnRunes;
+    moduleState = new RunesModuleState(drawnRunes);
+    contexts.set('rune', moduleState);
   }
 
   return {
