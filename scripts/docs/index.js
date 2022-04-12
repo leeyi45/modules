@@ -1,15 +1,20 @@
 const TypeDoc = require('typedoc');
 const paths = require('./paths');
 const modules = require('../../modules.json');
+const fs = require('fs');
 
-async function main() {
-  const app = new TypeDoc.Application();
-  app.options.addReader(new TypeDoc.TSConfigReader());
-  app.options.addReader(new TypeDoc.TypeDocReader());
+const app = new TypeDoc.Application();
+app.options.addReader(new TypeDoc.TSConfigReader());
+app.options.addReader(new TypeDoc.TypeDocReader());
 
+const errHandler = (err) => {
+  if (err) console.error(err);
+};
+
+async function build_all() {
   app.bootstrap({
     entryPoints: Object.keys(modules).map(
-      (bundle) => `${paths.root}/src/bundles/${bundle}/functions.ts`
+      (module) => `${paths.root}/src/bundles/${module}/functions.ts`
     ),
     theme: 'typedoc-modules-theme',
     readme: `${paths.root}/scripts/docs/README.md`,
@@ -19,11 +24,41 @@ async function main() {
   });
 
   const project = app.convert();
+  if (project) {
+    await app.generateDocs(project, 'build/documentation');
+  }
+}
+
+async function build_json(module) {
+  app.bootstrap({
+    entryPoints: [`${paths.root}/src/bundles/${module}/functions.ts`],
+    excludeInternal: true,
+    categorizeByGroup: true,
+  });
+
+  const project = app.convert();
 
   if (project) {
-    const outputDir = 'build/documentation';
-    await app.generateDocs(project, outputDir);
-    await app.generateJson(project, outputDir + '/documentation.json');
+    const outputDir = `build/documentation/${module}`;
+    fs.mkdir(outputDir, { recursive: true }, errHandler);
+    await app.generateJson(project, outputDir + `/documentation.json`);
+  }
+}
+
+async function main() {
+  await build_all();
+  await Promise.all(Object.keys(modules).map(build_json));
+
+  const dir = `${paths.root}/build/documentation`;
+  fs.mkdir(`${dir}/jsons`, errHandler);
+  for (const module of Object.keys(modules)) {
+    fs.rename(
+      `${dir}/${module}/documentation.json`,
+      `${dir}/jsons/${module}.json`,
+      errHandler
+    );
+
+    fs.rm(`${dir}/${module}`, { recursive: true, force: true }, errHandler);
   }
 }
 
