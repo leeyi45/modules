@@ -11,6 +11,9 @@ const errHandler = (err) => {
   if (err) console.error(err);
 };
 
+/**
+ * Build the html documentation for all modules
+ */
 async function build_all() {
   app.bootstrap({
     entryPoints: Object.keys(modules).map(
@@ -29,6 +32,9 @@ async function build_all() {
   }
 }
 
+/**
+ * Build the json output for the specified module
+ */
 async function build_json(module) {
   app.bootstrap({
     entryPoints: [`${paths.root}/src/bundles/${module}/functions.ts`],
@@ -39,6 +45,8 @@ async function build_json(module) {
   const project = app.convert();
 
   if (project) {
+    // Because typedoc clears the output directory every time it outputs,
+    // we make a new directory to temporarily store the output for each module
     const outputDir = `build/documentation/${module}`;
     fs.mkdir(outputDir, { recursive: true }, errHandler);
     await app.generateJson(project, outputDir + `/documentation.json`);
@@ -49,6 +57,8 @@ async function main() {
   await build_all();
   await Promise.all(Object.keys(modules).map(build_json));
 
+  // Copy each module's json file to the jsons folder which is used
+  // by js-slang to import documentation
   const dir = `${paths.root}/build/documentation`;
   fs.mkdir(`${dir}/jsons`, errHandler);
   for (const module of Object.keys(modules)) {
