@@ -1,10 +1,11 @@
 /* eslint-disable no-useless-escape */
 /**
+ * Module to convert from markdown into HTML
  * drawdown.js
  * (c) Adam Leggett
  */
 
-module.exports = function markdown(src) {
+module.exports = (src) => {
   var rx_lt = /</g;
   var rx_gt = />/g;
   var rx_space = /\t|\r|\uf8ff/g;
