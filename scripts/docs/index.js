@@ -50,15 +50,12 @@ async function build_json(module) {
 
   // Because typedoc clears the output directory every time it outputs,
   // we make a new directory to temporarily store the output for each module
-  fs.mkdir(`build/documentation/${module}`, { recursive: true }, errHandler);
-  await app.generateJson(
-    project,
-    `build/documentation/${module}/documentation.json`
-  );
+  fs.mkdirSync(`build/jsons/${module}`, errHandler);
+  await app.generateJson(project, `build/jsons/${module}/documentation.json`);
 
   // Read the json output from typedoc and format it into html
   fs.readFile(
-    `build/documentation/${module}/documentation.json`,
+    `build/jsons/${module}/documentation.json`,
     'utf-8',
     (err, data) => {
       if (err) console.error(err);
@@ -143,7 +140,7 @@ async function build_json(module) {
           (err) => {
             if (err) console.error(err);
             fs.rm(
-              `build/documentation/${module}`,
+              `build/jsons/${module}`,
               { recursive: true, force: true },
               errHandler
             );
