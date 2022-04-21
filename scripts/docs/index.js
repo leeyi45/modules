@@ -89,11 +89,7 @@ async function build_json(module) {
               // If the documentation is for a function
               if (!element.signatures || element.signatures[0] === undefined)
                 throw new Error(
-                  `${chalk.red(
-                    'Error:'
-                  )} ${module}: Unable to find a signature for function ${
-                    element.name
-                  }!`
+                  `Error: ${module}: Unable to find a signature for function ${element.name}!`
                 );
 
               // In source all functions should only have one signature
