@@ -172,7 +172,7 @@ async function main() {
   fs.rmSync(`${paths.root}/build/jsons`, { recursive: true, force: true });
   await build_all(moduleBundles);
   fs.mkdirSync(`${paths.root}/build/jsons`);
-  await Promise.all(Object.keys(modules).map(build_json));
+  await Promise.all(moduleBundles.map(build_json));
 }
 
 main().catch(console.error);
