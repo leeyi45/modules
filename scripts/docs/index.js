@@ -16,9 +16,9 @@ const errHandler = (err) => {
 /**
  * Build the html documentation for all modules
  */
-async function build_all() {
+async function build_all(modules) {
   app.bootstrap({
-    entryPoints: Object.keys(modules).map(
+    entryPoints: modules.map(
       (module) => `${paths.root}/src/bundles/${module}/functions.ts`
     ),
     theme: 'typedoc-modules-theme',
@@ -148,8 +148,29 @@ async function build_json(module) {
 }
 
 async function main() {
+  let moduleBundles;
+
+  // Specifically build the provided modules
+  if (process.argv[2] === '--module') {
+    if (process.argv.length < 4) {
+      throw new Error('No modules specified');
+    }
+
+    moduleBundles = process.argv[3].split(',');
+
+    const undefineds = moduleBundles.filter(
+      (x) => !Object.keys(modules).includes(x)
+    );
+    if (undefineds.length > 0) {
+      throw new Error(`Unknown modules: ${undefineds.length(', ')}`);
+    }
+  } else {
+    // Build all available modules
+    moduleBundles = Object.keys(modules);
+  }
+
   fs.rmSync(`${paths.root}/build/jsons`, { recursive: true, force: true });
-  await build_all();
+  await build_all(moduleBundles);
   fs.mkdirSync(`${paths.root}/build/jsons`);
   await Promise.all(Object.keys(modules).map(build_json));
 }
