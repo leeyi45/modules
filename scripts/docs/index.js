@@ -16,9 +16,9 @@ const errHandler = (err) => {
 /**
  * Build the html documentation for all modules
  */
-async function build_all(modules) {
+async function build_html() {
   app.bootstrap({
-    entryPoints: modules.map(
+    entryPoints: Object.keys(modules).map(
       (module) => `${paths.root}/src/bundles/${module}/functions.ts`
     ),
     theme: 'typedoc-modules-theme',
@@ -35,116 +35,120 @@ async function build_all(modules) {
 }
 
 /**
- * Build the json output for the specified module
+ * Build the json documentation for the specified modules
  */
-async function build_json(module) {
+async function build_jsons(modules) {
   app.bootstrap({
-    entryPoints: [`${paths.root}/src/bundles/${module}/functions.ts`],
+    entryPoints: modules.map(
+      (module) => `${paths.root}/src/bundles/${module}/functions.ts`
+    ),
     excludeInternal: true,
     categorizeByGroup: true,
   });
 
   const project = app.convert();
+  await app.generateJson(project, `build/jsons/documentation.json`);
 
-  if (!project) return undefined;
+  if (!project) return;
 
-  // Because typedoc clears the output directory every time it outputs,
-  // we make a new directory to temporarily store the output for each module
-  fs.mkdirSync(`build/jsons/${module}`, errHandler);
-  await app.generateJson(project, `build/jsons/${module}/documentation.json`);
+  const parsers = {
+    Variable: (element) => {
+      let desc = element.comment?.shortText;
+      if (!desc) {
+        desc = element.name;
+        console.warn(
+          `${chalk.yellow('Warning:')} ${module}: No description found for ${
+            element.name
+          }`
+        );
+      } else {
+        desc = drawdown(desc);
+      }
 
-  // Read the json output from typedoc and format it into html
-  fs.readFile(
-    `build/jsons/${module}/documentation.json`,
-    'utf-8',
-    (err, data) => {
-      if (err) console.error(err);
-      else {
-        const docs = JSON.parse(data).children;
+      const typeStr =
+        element.type?.name !== undefined ? `:${element.type.name}` : '';
 
-        let output;
+      return `<div><h4>${element.name}${typeStr}</h4><div class="description">${desc}</div></div>`;
+    },
+    Function: (element) => {
+      if (!element.signatures || element.signatures[0] === undefined)
+        throw new Error(
+          `Error: ${module}: Unable to find a signature for function ${element.name}!`
+        );
 
-        if (docs) {
-          output = docs.reduce((result, element) => {
-            if (element.kindString === 'Variable') {
-              let desc = element.comment?.shortText;
-              if (!desc) {
-                desc = element.name;
-                console.warn(
-                  `${chalk.yellow(
-                    'Warning:'
-                  )} ${module}: No description found for ${element.name}`
-                );
-              } else {
-                desc = drawdown(desc);
-              }
+      // In source all functions should only have one signature
+      const signature = element.signatures[0];
 
-              const typeStr =
-                element.type?.name !== undefined ? `:${element.type.name}` : '';
+      // Form the parameter string for the function
+      let paramStr;
+      if (!signature.parameters) paramStr = `()`;
+      else
+        paramStr = `(${signature.parameters
+          .map((param) => param.name)
+          .join(', ')})`;
 
-              result[
+      // Form the result representation for the function
+      let resultStr;
+      if (!signature.type) resultStr = `void`;
+      else resultStr = signature.type.name;
+
+      let desc = signature.comment?.shortText;
+      if (!desc) {
+        desc = element.name;
+        console.warn(
+          `${chalk.yellow('Warning:')} ${module}: No description found for ${
+            element.name
+          }`
+        );
+      } else {
+        desc = drawdown(desc);
+      }
+
+      return `<div><h4>${element.name}${paramStr} → {${resultStr}}</h4><div class="description">${desc}</div></div>`;
+    },
+  };
+
+  // Read from the TypeDoc output and retrieve the JSON relevant to the each module
+  fs.readFile('build/jsons/documentation.json', 'utf-8', (err, data) => {
+    if (err) throw err;
+
+    const parsedJSON = JSON.parse(data)?.children;
+
+    if (!parsedJSON) {
+      throw new Error('Failed to parse documentation.json');
+    }
+
+    for (const module of modules) {
+      const moduleDocs = parsedJSON.find((x) => x.name === module)?.children;
+
+      let output;
+      if (moduleDocs === undefined) {
+        console.warn(
+          `${chalk.yellow('Warning:')} No documentation found for ${module}`
+        );
+        output = {};
+      } else {
+        output = moduleDocs.reduce((result, element) => {
+          if (parsers[element.kindString]) {
+            result[element.name] = parsers[element.kindString](element);
+          } else {
+            console.warn(
+              `${chalk.yellow('Warning:')} ${module}: No parser found for ${
                 element.name
-              ] = `<div><h4>${element.name}${typeStr}</h4><div class="description">${desc}</div></div>`;
-            } else if (element.kindString === 'Function') {
-              // If the documentation is for a function
-              if (!element.signatures || element.signatures[0] === undefined)
-                throw new Error(
-                  `Error: ${module}: Unable to find a signature for function ${element.name}!`
-                );
-
-              // In source all functions should only have one signature
-              const signature = element.signatures[0];
-
-              // Form the parameter string for the function
-              let paramStr;
-              if (!signature.parameters) paramStr = `()`;
-              else
-                paramStr = `(${signature.parameters
-                  .map((param) => param.name)
-                  .join(', ')})`;
-
-              // Form the result representation for the function
-              let resultStr;
-              if (!signature.type) resultStr = `void`;
-              else resultStr = signature.type.name;
-
-              let desc = signature.comment?.shortText;
-              if (!desc) {
-                desc = element.name;
-                console.warn(
-                  `${module}: No description found for signature of ${element.name}`
-                );
-              } else {
-                desc = drawdown(desc);
-              }
-
-              result[
-                element.name
-              ] = `<div><h4>${element.name}${paramStr} → {${resultStr}}</h4><div class="description">${desc}</div></div>`;
-            }
-            return result;
-          }, {});
-        } else {
-          // If there was no documentation for that module, just
-          // return nothing
-          output = {};
-        }
-
-        fs.writeFile(
-          `build/jsons/${module}.json`,
-          JSON.stringify(output, null, 2),
-          (err) => {
-            if (err) console.error(err);
-            fs.rm(
-              `build/jsons/${module}`,
-              { recursive: true, force: true },
-              errHandler
+              } of type ${element.type}`
             );
           }
-        );
+          return result;
+        }, {});
       }
+
+      fs.writeFile(
+        `build/jsons/${module}.json`,
+        JSON.stringify(output, null, 2),
+        errHandler
+      );
     }
-  );
+  });
 }
 
 async function main() {
@@ -169,10 +173,7 @@ async function main() {
     moduleBundles = Object.keys(modules);
   }
 
-  fs.rmSync(`${paths.root}/build/jsons`, { recursive: true, force: true });
-  await build_all(moduleBundles);
-  fs.mkdirSync(`${paths.root}/build/jsons`);
-  await Promise.all(moduleBundles.map(build_json));
+  await Promise.all([build_jsons(moduleBundles), build_html()]);
 }
 
 main().catch(console.error);
