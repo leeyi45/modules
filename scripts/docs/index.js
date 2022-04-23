@@ -47,9 +47,9 @@ async function build_jsons(modules) {
   });
 
   const project = app.convert();
-  await app.generateJson(project, `build/jsons/documentation.json`);
-
   if (!project) return;
+
+  await app.generateJson(project, `build/jsons/documentation.json`);
 
   const parsers = {
     Variable: (element) => {
