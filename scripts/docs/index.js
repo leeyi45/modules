@@ -49,7 +49,8 @@ async function build_jsons(modules) {
   const project = app.convert();
   if (!project) return;
 
-  await app.generateJson(project, `build/jsons/documentation.json`);
+  fs.mkdirSync(`build/jsons/output`, {});
+  await app.generateJson(project, `build/jsons/output/documentation.json`);
 
   const parsers = {
     Variable: (element) => {
@@ -109,7 +110,7 @@ async function build_jsons(modules) {
   };
 
   // Read from the TypeDoc output and retrieve the JSON relevant to the each module
-  fs.readFile('build/jsons/documentation.json', 'utf-8', (err, data) => {
+  fs.readFile('build/jsons/output/documentation.json', 'utf-8', (err, data) => {
     if (err) throw err;
 
     const parsedJSON = JSON.parse(data)?.children;
@@ -145,6 +146,12 @@ async function build_jsons(modules) {
       fs.writeFile(
         `build/jsons/${module}.json`,
         JSON.stringify(output, null, 2),
+        errHandler
+      );
+
+      fs.rm(
+        'build/jsons/output/',
+        { recursive: true, force: true },
         errHandler
       );
     }
