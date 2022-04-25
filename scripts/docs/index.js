@@ -31,6 +31,7 @@ async function build_html() {
   const project = app.convert();
   if (project) {
     await app.generateDocs(project, 'build/documentation');
+    await app.generateJson(project, 'build/documentation');
   }
 }
 
@@ -148,13 +149,8 @@ async function build_jsons(modules) {
         JSON.stringify(output, null, 2),
         errHandler
       );
-
-      fs.rm(
-        'build/jsons/output/',
-        { recursive: true, force: true },
-        errHandler
-      );
     }
+    fs.rm('build/jsons/output', { recursive: true, force: true }, errHandler);
   });
 }
 
