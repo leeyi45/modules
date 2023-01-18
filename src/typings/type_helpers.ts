@@ -20,3 +20,10 @@ export type ModuleContexts = Context['moduleContexts'];
 export interface ReplResult {
   toReplString: () => string;
 }
+
+export interface TabInterface {
+  toSpawn: ((ctx: DebuggerContext) => boolean) | undefined;
+  body: (ctx: DebuggerContext) => any;
+  label: string;
+  iconName: string;
+}
