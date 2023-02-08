@@ -2,23 +2,34 @@ import chalk from 'chalk';
 import { Command } from 'commander';
 import type { Application, ProjectReflection } from 'typedoc';
 
-import { type BuildOptions, divideAndRound, wrapWithTimer } from '../buildUtils';
-import type { BuildResult } from '../types';
+import { wrapWithTimer } from '../../scriptUtils.js';
+import { divideAndRound, retrieveBundlesAndTabs } from '../buildUtils.js';
+import { logTscResults, runTsc } from '../prebuild/tsc.js';
+import type { BuildCommandInputs, BuildResult } from '../types';
 
-import { initTypedoc, logTypedocTime } from './docUtils';
+import { initTypedoc, logTypedocTime } from './docUtils.js';
+
+type HTMLOptions = {
+  outDir: string;
+  modulesSpecified: boolean;
+};
 
 /**
  * Build HTML documentation
  */
-export const buildHtml = wrapWithTimer(async (app: Application, project: ProjectReflection, buildOpts: BuildOptions): Promise<BuildResult> => {
-  if (buildOpts.modulesSpecified) {
+export const buildHtml = wrapWithTimer(async (app: Application,
+  project: ProjectReflection, {
+    outDir,
+    modulesSpecified,
+  }: HTMLOptions): Promise<BuildResult> => {
+  if (modulesSpecified) {
     return {
       severity: 'warn',
     };
   }
 
   try {
-    await app.generateDocs(project, `${buildOpts.outDir}/documentation`);
+    await app.generateDocs(project, `${outDir}/documentation`);
     return {
       severity: 'success',
     };
@@ -34,16 +45,21 @@ export const buildHtml = wrapWithTimer(async (app: Application, project: Project
  * Log output from `buildHtml`
  * @see {buildHtml}
  */
-export const logHtmlResult = ({ elapsed, result: { severity, error } }: { elapsed: number, result: BuildResult }) => {
+export const logHtmlResult = (htmlResult: Awaited<ReturnType<typeof buildHtml>> | null) => {
+  if (!htmlResult) return;
+
+  const { elapsed, result: { severity, error } } = htmlResult;
   if (severity === 'success') {
-    const timeStr = divideAndRound(elapsed, 1000, 2);
+    const timeStr = divideAndRound(elapsed, 1000);
     console.log(`${chalk.cyanBright('HTML documentation built')} ${chalk.greenBright('successfully')} in ${timeStr}s\n`);
   } else if (severity === 'warn') {
-    console.log(chalk.yellowBright('-m was specified, not building HTML documentation\n'));
+    console.log(chalk.yellowBright('Modules were manually specified, not building HTML documentation\n'));
   } else {
     console.log(`${chalk.cyanBright('HTML documentation')} ${chalk.redBright('failed')}: ${error}\n`);
   }
 };
+
+type HTMLCommandInputs = Omit<BuildCommandInputs, 'modules' | 'tabs'>;
 
 /**
  * CLI command to only build HTML documentation
@@ -51,12 +67,30 @@ export const logHtmlResult = ({ elapsed, result: { severity, error } }: { elapse
 const buildHtmlCommand = new Command('html')
   .option('--outDir <outdir>', 'Output directory', 'build')
   .option('--srcDir <srcdir>', 'Source directory for files', 'src')
+  .option('--manifest <file>', 'Manifest file', 'modules.json')
+  .option('-v, --verbose', 'Display more information about the build results', false)
+  .option('--no-tsc', 'Don\'t run tsc before building')
   .description('Build only HTML documentation')
-  .action(async (buildOpts) => {
-    const { elapsed: typedoctime, result: [app, project] } = await initTypedoc(buildOpts);
+  .action(async (opts: HTMLCommandInputs) => {
+    const assets = await retrieveBundlesAndTabs(opts.manifest, null, null);
+
+    if (opts.tsc) {
+      const tscResult = await runTsc(opts.srcDir, assets);
+      logTscResults(tscResult, opts.srcDir);
+      if (tscResult.result.severity === 'error') return;
+    }
+
+    const { elapsed: typedoctime, result: [app, project] } = await initTypedoc({
+      bundles: assets.bundles,
+      srcDir: opts.srcDir,
+      verbose: opts.verbose,
+    });
     logTypedocTime(typedoctime);
 
-    const htmlResult = await buildHtml(app, project, buildOpts);
+    const htmlResult = await buildHtml(app, project, {
+      outDir: opts.outDir,
+      modulesSpecified: false,
+    });
     logHtmlResult(htmlResult);
   });
 

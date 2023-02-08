@@ -15,3 +15,21 @@ export const retrieveManifest = async (manifest) => {
         throw error;
     }
 };
+export const wrapWithTimer = (func) => async (...params) => {
+    const startTime = performance.now();
+    const result = await func(...params);
+    const endTime = performance.now();
+    return {
+        elapsed: endTime - startTime,
+        result,
+    };
+};
+export const printList = (header, lst, mapper, sep = '\n') => {
+    const mappingFunction = mapper || ((each) => {
+        if (typeof each === 'string')
+            return each;
+        return `${each}`;
+    });
+    return console.log(`${header}\n${lst.map((str, i) => `${i + 1}. ${mappingFunction(str)}`)
+        .join(sep)}`);
+};

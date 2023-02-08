@@ -1,8 +1,10 @@
 import chalk from 'chalk';
 import { Command } from 'commander';
+import fs from 'fs/promises';
 
-import { logTypedocTime } from './docs/docUtils';
-import { createBuildCommand } from './buildUtils';
+import { printList } from '../scriptUtils.js';
+
+import { logTypedocTime } from './docs/docUtils.js';
 import buildDocsCommand, {
   buildHtml,
   buildHtmlCommand,
@@ -10,46 +12,60 @@ import buildDocsCommand, {
   buildJsons,
   initTypedoc,
   logHtmlResult,
-  logJsonResults,
-} from './docs';
-import buildModulesCommand, { buildModules, buildTabsCommand, logBundleResults, logTabResults } from './modules';
+} from './docs/index.js';
+import buildModulesCommand, {
+  buildModules,
+  buildTabsCommand,
+} from './modules/index.js';
+import type { LintCommandInputs } from './prebuild/eslint.js';
+import { autoLogPrebuild } from './prebuild/index.js';
+import { createBuildCommand, logResult, retrieveBundlesAndTabs } from './buildUtils.js';
+import type { BuildCommandInputs } from './types.js';
 
-const buildAllCommand = createBuildCommand('all', async (buildOpts) => {
-  console.log(`${chalk.cyanBright('Building bundles, tabs, jsons and HTML for the following bundles:')}\n${
-    buildOpts.bundles.map((bundle, i) => `${i + 1}. ${bundle}`)
-      .join('\n')
-  }\n`);
+const buildAllCommand = createBuildCommand('all', true)
+  .argument('[modules...]', 'Manually specify which modules to build', null)
+  .action(async (modules: string[] | null, opts: BuildCommandInputs & LintCommandInputs) => {
+    const assets = await retrieveBundlesAndTabs(opts.manifest, modules, null);
+    const proceed = await autoLogPrebuild(opts, assets);
+    if (!proceed) return;
 
-  const [{ bundles: bundleResults, tabs: tabResults }, {
-    typedoctime,
-    html: htmlResult,
-    json: jsonResults,
-  }] = await Promise.all([
-    buildModules(buildOpts),
-    initTypedoc(buildOpts)
-      .then(async ({ elapsed, result: [app, project] }) => {
-        const [json, html] = await Promise.all([
-          buildJsons(project, buildOpts),
-          buildHtml(app, project, buildOpts),
-        ]);
-        return {
-          json: {
-            elapsed: json.elapsed,
-            results: json.result,
-          },
-          html,
-          typedoctime: elapsed,
-        };
-      }),
-  ]);
+    printList(`${chalk.cyanBright('Building bundles, tabs, jsons and HTML for the following bundles:')}\n`, assets.bundles);
 
-  logTypedocTime(typedoctime);
+    const [results, {
+      typedoctime,
+      html: htmlResult,
+      json: jsonResults,
+    }] = await Promise.all([
+      buildModules(opts, assets),
+      initTypedoc({
+        ...opts,
+        bundles: assets.bundles,
+      })
+        .then(async ({ elapsed, result: [app, project] }) => {
+          const [json, html] = await Promise.all([
+            buildJsons(project, {
+              outDir: opts.outDir,
+              bundles: assets.bundles,
+            }),
+            buildHtml(app, project, {
+              outDir: opts.outDir,
+              modulesSpecified: assets.modulesSpecified,
+            }),
+          ]);
+          return {
+            json,
+            html,
+            typedoctime: elapsed,
+          };
+        }),
+      fs.copyFile(opts.manifest, `${opts.outDir}/${opts.manifest}`),
+    ]);
 
-  logBundleResults(bundleResults);
-  logTabResults(tabResults);
-  logJsonResults(jsonResults);
-  logHtmlResult(htmlResult);
-})
+    logTypedocTime(typedoctime);
+
+    logResult(results.concat(jsonResults), opts.verbose);
+    logHtmlResult(htmlResult);
+  })
   .description('Build bundles, tabs, jsons and HTML documentation');
 
 export default new Command('build')
@@ -60,20 +76,3 @@ export default new Command('build')
   .addCommand(buildJsonCommand)
   .addCommand(buildModulesCommand)
   .addCommand(buildTabsCommand);
-
-// export const watchAll = async (buildOpts: BuildOptions) => {
-//   const manifest = await retrieveManifest(buildOpts);
-//   const bundlesToBuild = Object.keys(manifest);
-//   const tabs = Object.values(manifest)
-//     .flatMap((module) => module.tabs);
-
-//   console.log(chalk.magentaBright('Beginning watch'));
-//   await Promise.all([
-//     initTypedoc(bundlesToBuild, buildOpts)
-//       .then(({ elapsed, result: [, project] }) => {
-//         console.log(chalk.cyanBright(`Took ${divideAndRound(elapsed, 1000, 2)}s to initialize typedoc`));
-//         return watchBundles(buildOpts, project, bundlesToBuild);
-//       }),
-//     watchTabs(buildOpts, tabs),
-//   ]);
-// };

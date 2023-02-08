@@ -1,5 +1,6 @@
 module.exports = {
   "extends": ["../.eslintrc.base.cjs", "airbnb-typescript"],
+  "ignorePatterns": ["**/__tests__/**", "**/__mocks__/**", "**/*.*js"],
   "parser": "@typescript-eslint/parser",
   "parserOptions": {
     "project": "./tsconfig.json",
@@ -46,13 +47,13 @@ module.exports = {
         // allowTemplateLiterals: false
       }
     ],
-    
+
     // [typescript-eslint Extension Rules]
     /* NOTE
       .eslintrc.base.js has been configured for every rule off the
       eslint:recommended config as of V8.
-      A similar complete config but for all typescript-eslint rules hasn"t
-      been made, instead simply using airbnb-typescript"s layers of
+      A similar complete config but for all typescript-eslint rules hasn't
+      been made, instead simply using airbnb-typescript's layers of
       extended configs & plugins.
 
       This section is for reconfiguring the typescript-eslint extension
@@ -123,7 +124,10 @@ module.exports = {
     ]
   },
   "overrides": [{
-    "extends": ["../.eslintrc.test.json"],
-    "files": ["./**/__tests__/**/*.ts"],
+    "extends": ["../.eslintrc.test.cjs"],
+    "files": ["**/__tests__/**", "**/__mocks__/**"],
+  }, {
+    extends: ["../.eslintrc.base.cjs"],
+    files: ["**/*.*.js"]
   }]
 }

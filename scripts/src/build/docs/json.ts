@@ -1,5 +1,4 @@
 import chalk from 'chalk';
-import { Table } from 'console-table-printer';
 import fs from 'fs/promises';
 import type {
   DeclarationReflection,
@@ -9,24 +8,25 @@ import type {
   SomeType,
 } from 'typedoc';
 
+import { printList, wrapWithTimer } from '../../scriptUtils.js';
 import {
-  type BuildOptions,
   createBuildCommand,
-  divideAndRound,
-  fileSizeFormatter,
-  wrapWithTimer,
-} from '../buildUtils';
-import type { BuildResult, Severity } from '../types';
+  logResult,
+  retrieveBundlesAndTabs,
+} from '../buildUtils.js';
+import { logTscResults, runTsc } from '../prebuild/tsc.js';
+import type { BuildCommandInputs, BuildResult, Severity, UnreducedResult } from '../types';
 
-import { initTypedoc, logTypedocTime } from './docUtils';
-import drawdown from './drawdown';
+import { initTypedoc, logTypedocTime } from './docUtils.js';
+import drawdown from './drawdown.js';
 
-const typeToName = (type?: SomeType, alt : string = 'unknown') => (type ? (type as ReferenceType | IntrinsicType).name : alt);
+
+const typeToName = (type?: SomeType, alt: string = 'unknown') => (type ? (type as ReferenceType | IntrinsicType).name : alt);
 
 /**
  * Parsers to convert typedoc elements into strings
  */
-const parsers: Record<string, (docs: DeclarationReflection) => string> = {
+const parsers: Record<string, (docs: DeclarationReflection) => Record<'header' | 'desc', string>> = {
   Variable(element) {
     let desc: string;
     if (!element.comment) desc = 'No description available';
@@ -34,7 +34,10 @@ const parsers: Record<string, (docs: DeclarationReflection) => string> = {
       desc = drawdown(element.comment.summary.map(({ text }) => text)
         .join(''));
     }
-    return `<div><h4>${element.name}: ${typeToName(element.type)}</h4><div class="description">${desc}</div></div>`;
+    return {
+      header: `${element.name}: ${typeToName(element.type)}`,
+      desc,
+    };
   },
   Function({ name: elementName, signatures: [signature] }) {
     // Form the parameter string for the function
@@ -55,15 +58,21 @@ const parsers: Record<string, (docs: DeclarationReflection) => string> = {
       desc = drawdown(signature.comment.summary.map(({ text }) => text)
         .join(''));
     }
-    const header = `${elementName}${paramStr} → {${resultStr}}`;
-    return `<div><h4>${header}</h4><div class="description">${desc}</div></div>`;
+    return {
+      header: `${elementName}${paramStr} → {${resultStr}}`,
+      desc,
+    };
   },
 };
 
 /**
  * Build a single json
  */
-const buildJson = wrapWithTimer(async (bundle: string, moduleDocs: DeclarationReflection | undefined, buildOpts: BuildOptions): Promise<BuildResult> => {
+const buildJson = wrapWithTimer(async (
+  bundle: string,
+  moduleDocs: DeclarationReflection | undefined,
+  outDir: string,
+): Promise<BuildResult> => {
   try {
     if (!moduleDocs) {
       return {
@@ -78,16 +87,18 @@ const buildJson = wrapWithTimer(async (bundle: string, moduleDocs: DeclarationRe
         if (!parser) {
           return [{
             severity: 'warn' as Severity,
-            errors: [...errors, `Could not find parser for type ${decl.kindString}`],
+            errors: [...errors, `Symbol '${decl.name}': Could not find parser for type ${decl.kindString}`],
           }, decls];
         }
+        const { header, desc } = parser(decl);
 
         return [{
           severity,
           errors,
         }, {
           ...decls,
-          [decl.name]: parser(decl),
+          [decl.name]: `<div><h4>${header}</h4><div class="description">${desc}</div></div>`,
+
         }];
       } catch (error) {
         return [{
@@ -122,15 +133,14 @@ const buildJson = wrapWithTimer(async (bundle: string, moduleDocs: DeclarationRe
       // }))>,
     ]);
 
-    let size: number;
+    let size: number | undefined;
     if (result) {
-      const outFile = `${buildOpts.outDir}/jsons/${bundle}.json`;
+      const outFile = `${outDir}/jsons/${bundle}.json`;
       await fs.writeFile(outFile, JSON.stringify(result, null, 2));
       ({ size } = await fs.stat(outFile));
     } else {
       if (sevRes.severity !== 'error') sevRes.severity = 'warn';
       sevRes.errors.push(`No json generated for ${bundle}`);
-      size = 0;
     }
 
     const errorStr = sevRes.errors.length > 1 ? `${sevRes.errors[0]} +${sevRes.errors.length - 1}` : sevRes.errors[0];
@@ -148,115 +158,71 @@ const buildJson = wrapWithTimer(async (bundle: string, moduleDocs: DeclarationRe
   }
 });
 
+type BuildJsonOpts = {
+  bundles: string[];
+  outDir: string;
+};
+
 /**
  * Build all specified jsons
  */
-export const buildJsons = wrapWithTimer(async (project: ProjectReflection, buildOpts: BuildOptions) => {
-  await fs.mkdir(`${buildOpts.outDir}/jsons`, { recursive: true });
-  if (buildOpts.bundles.length === 1) {
+export const buildJsons = async (project: ProjectReflection, { outDir, bundles }: BuildJsonOpts): Promise<UnreducedResult[]> => {
+  await fs.mkdir(`${outDir}/jsons`, { recursive: true });
+  if (bundles.length === 1) {
     // If only 1 bundle is provided, typedoc's output is different in structure
     // So this new parser is used instead.
-    const [bundle] = buildOpts.bundles;
-    const result = await buildJson(bundle, project as any, buildOpts);
-    return {
-      [bundle]: result,
-    };
+    const [bundle] = bundles;
+    const { elapsed, result } = await buildJson(bundle, project as any, outDir);
+    return [['json', bundle, {
+      ...result,
+      elapsed,
+    }] as UnreducedResult];
   }
 
-  const results = await Promise.all(
-    buildOpts.bundles.map(async (bundle) => [bundle, await buildJson(bundle, project.getChildByName(bundle) as DeclarationReflection, buildOpts)] as [string, { elapsed: number, result: BuildResult }]),
+  return Promise.all(
+    bundles.map(async (bundle) => {
+      const { elapsed, result } = await buildJson(bundle, project.getChildByName(bundle) as DeclarationReflection, outDir);
+      return ['json', bundle, {
+        ...result,
+        elapsed,
+      }] as UnreducedResult;
+    }),
   );
-  return results.reduce((res, [bundle, result]) => ({
-    ...res,
-    [bundle]: result,
-  }), {} as Record<string, { elapsed: number, result: BuildResult }>);
-});
-
-/**
- * Log output from `buildJsons`
- * @see {buildJsons}
- */
-export const logJsonResults = (jsonResults: { elapsed: number, results: Record<string, { elapsed: number, result: BuildResult }> } | false) => {
-  if (typeof jsonResults === 'boolean') return;
-
-  const { elapsed: jsonTime, results } = jsonResults;
-  const entries = Object.entries(results);
-  if (entries.length === 0) return;
-
-  const jsonTable = new Table({
-    columns: [
-      {
-        name: 'bundle',
-        title: 'Bundle',
-      },
-      {
-        name: 'jsonSeverity',
-        title: 'Status',
-      },
-      {
-        name: 'fileSize',
-        title: 'File Size',
-      },
-      {
-        name: 'jsonTime',
-        title: 'Build Time(s)',
-      },
-      {
-        name: 'jsonError',
-        title: 'Errors',
-      },
-    ],
-  });
-
-  let jsonSeverity: Severity = 'success';
-  entries.forEach(([moduleName, { elapsed, result: { severity, error, fileSize } }]) => {
-    if (severity === 'error') {
-      jsonSeverity = 'error';
-      jsonTable.addRow({
-        jsonSeverity: 'Error',
-        jsonTime: '-',
-        jsonError: error,
-        fileSize: '-',
-      }, { color: 'red' });
-    } else {
-      if (jsonSeverity === 'success' && severity === 'warn') jsonSeverity = 'warn';
-
-      jsonTable.addRow({
-        bundle: moduleName,
-        jsonSeverity: severity === 'warn' ? 'Warning' : 'Success',
-        jsonTime: divideAndRound(elapsed, 1000, 2),
-        jsonError: error || '-',
-        fileSize: fileSizeFormatter(fileSize),
-      }, { color: severity === 'warn' ? 'yellow' : 'green' });
-    }
-  });
-
-  const jsonTimeStr = `${divideAndRound(jsonTime, 1000, 2)}s`;
-  if (jsonSeverity === 'success') {
-    console.log(`${chalk.cyanBright('JSONS built')} ${chalk.greenBright('successfully')} in ${jsonTimeStr}:\n${jsonTable.render()}\n`);
-  } else if (jsonSeverity === 'warn') {
-    console.log(`${chalk.cyanBright('JSONS built with')} ${chalk.yellowBright('warnings')} in ${jsonTimeStr}:\n${jsonTable.render()}\n`);
-  } else {
-    console.log(`${chalk.cyanBright('JSONS failed with')} ${chalk.redBright('errors')}:\n${jsonTable.render()}\n`);
-  }
 };
 
 /**
  * Console command for building jsons
  */
-const jsonCommand = createBuildCommand('jsons', async (buildOpts) => {
-  if (buildOpts.bundles.length === 0) return;
+const jsonCommand = createBuildCommand('jsons', false)
+  .option('--no-tsc', 'Don\'t run tsc before building')
+  .argument('[modules...]', 'Manually specify which modules to build jsons for', null)
+  .action(async (modules: string[] | null, { manifest, srcDir, outDir, verbose, tsc }: Omit<BuildCommandInputs, 'modules' | 'tabs'>) => {
+    const { bundles } = await retrieveBundlesAndTabs(manifest, modules, [], false);
+    if (bundles.length === 0) return;
 
-  const { elapsed: typedocTime, result: [, project] } = await initTypedoc(buildOpts);
+    if (tsc) {
+      const tscResult = await runTsc(srcDir, {
+        bundles,
+        tabs: [],
+      });
+      logTscResults(tscResult, srcDir);
+      if (tscResult.result.severity === 'error') return;
+    }
 
-  logTypedocTime(typedocTime);
-  const { elapsed: jsonTotalTime, result } = await buildJsons(project, buildOpts);
+    const { elapsed: typedocTime, result: [, project] } = await initTypedoc({
+      bundles,
+      srcDir,
+      verbose,
+    });
 
-  logJsonResults({
-    results: result,
-    elapsed: jsonTotalTime,
-  });
-})
+    logTypedocTime(typedocTime);
+    printList(chalk.magentaBright('Building jsons for the following modules:\n'), bundles);
+    const jsonResults = await buildJsons(project, {
+      bundles,
+      outDir,
+    });
+    logResult(jsonResults, verbose);
+  })
   .description('Build only jsons');
 
 export default jsonCommand;
