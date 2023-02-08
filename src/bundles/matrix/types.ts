@@ -1,12 +1,19 @@
-import type { ReplResult } from '../../typings/type_helpers';
+export type Pair<H, T> = [H, T];
+export type EmptyList = null;
+export type NonEmptyList = Pair<any, any>;
+export type List = EmptyList | NonEmptyList;
 
-export class Matrix implements ReplResult {
-  constructor(
-    public readonly values: boolean[][],
-    public readonly rows: number,
-    public readonly cols: number,
-  ) {}
-  public toReplString() {
-    return '<Matrix>';
-  }
-}
+export type MatrixCallback = (row: number, col: number, newValue: boolean) => void;
+
+/**
+ * Representation of a 2D matrix of boolean values
+ */
+export type Matrix = {
+  values: boolean[][];
+  rows: number;
+  readonly cols: number;
+  toReplString: () => string;
+
+  buttons: [string, () => void][];
+  callback?: MatrixCallback;
+};
