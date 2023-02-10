@@ -1,6 +1,6 @@
+import React from 'react';
 import { Button, Checkbox, Icon, Menu, MenuDivider } from '@blueprintjs/core';
 import { Popover2, Tooltip2 } from '@blueprintjs/popover2';
-import React from 'react';
 import type { Matrix } from '../../bundles/matrix/types';
 import type { TabInterface } from '../../typings/type_helpers';
 import MultiItemDisplay from '../common/multi_item_display';
@@ -9,7 +9,6 @@ const color_on = '#cccccc';
 const color_on_hover = '#DDDDDD';
 const color_off = '#333333';
 const color_off_hover = '#444444';
-
 
 type ButtonProps = {
   onClick?: () => void
@@ -84,7 +83,7 @@ const MatrixDisplay = ({ matrix, index }: DisplayProps) => {
       <Button
         onClick={() => {
           func();
-          setUpdater(updater + 1);
+          rerender();
         }}
       >
         {text}

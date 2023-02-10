@@ -30,12 +30,12 @@ export const MAX_COLS = 256;
  * @returns Matrix
  */
 export const create_matrix = (rows: number, cols: number): Matrix => {
+  if (!Number.isInteger(rows)) throw new Error(`Expected an integer value for rows, got: ${rows}`);
+  if (!Number.isInteger(cols)) throw new Error(`Expected an integer value for columns, got: ${cols}`);
+
   if (rows < 1 || cols < 1) throw new Error('Cannot create a matrix with fewer than 1 row or column!');
   if (rows > MAX_ROWS) throw new Error(`Cannot create a matrix with greater than ${MAX_ROWS} rows!`);
   if (cols > MAX_COLS) throw new Error(`Cannot create a matrix with greater than ${MAX_COLS} columns!`);
-
-  if (!Number.isInteger(rows)) throw new Error(`Expected an integer value for rows, got: ${rows}`);
-  if (!Number.isInteger(cols)) throw new Error(`Expected an integer value for columns, got: ${cols}`);
 
   const values = new Array(rows);
   for (let i = 0; i < rows; i++) {
@@ -48,6 +48,21 @@ export const create_matrix = (rows: number, cols: number): Matrix => {
     rows,
     cols,
     toReplString: () => `<Matrix (${rows}, ${cols})>`,
+    buttons: [],
+  };
+};
+
+export const copy_matrix = (matrix: Matrix) => {
+  const values = new Array(matrix.rows);
+  for (let i = 0; i < matrix.rows; i++) {
+    values[i] = new Array(matrix.cols);
+
+    for (let j = 0; j < matrix.cols; j++) values[i][j] = matrix.values[i][j];
+  }
+
+  return {
+    ...matrix,
+    values,
     buttons: [],
   };
 };
