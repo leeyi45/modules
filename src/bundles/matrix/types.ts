@@ -3,6 +3,10 @@ export type EmptyList = null;
 export type NonEmptyList = Pair<any, any>;
 export type List = EmptyList | NonEmptyList;
 
+/**
+ * A function that is passed the row and column numbers of the cell that changed
+ * and its new value.
+ */
 export type MatrixCallback = (row: number, col: number, newValue: boolean) => void;
 
 /**
@@ -10,7 +14,7 @@ export type MatrixCallback = (row: number, col: number, newValue: boolean) => vo
  */
 export type Matrix = {
   values: boolean[][];
-  rows: number;
+  readonly rows: number;
   readonly cols: number;
   toReplString: () => string;
 

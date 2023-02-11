@@ -99,7 +99,7 @@ const MatrixDisplay = ({ matrix, index }: DisplayProps) => {
       columnGap: '2px',
     }}
   >
-    {Array.from(Array(matrix.cols), (_, i) => <p
+    {Array.from(Array(matrix.cols), (_, i) => <rect
       onMouseEnter={() => setHoverCol(i)}
       onMouseLeave={() => setHoverCol(-1)}
       onClick={() => {
@@ -114,8 +114,9 @@ const MatrixDisplay = ({ matrix, index }: DisplayProps) => {
           matrix.values[j][i] = value;
         }
         rerender();
-      }}
-    >{i}</p>)}
+      }}>
+      <p>{i}</p>
+    </rect>)}
   </div>;
 
   return <div style={{
@@ -155,7 +156,7 @@ const MatrixDisplay = ({ matrix, index }: DisplayProps) => {
               marginRight: '2px',
             }}
           >
-            <p
+            <rect
               onMouseEnter={() => setHoverRow(rowIndex)}
               onMouseLeave={() => setHoverRow(-1)}
               onClick={() => {
@@ -168,8 +169,9 @@ const MatrixDisplay = ({ matrix, index }: DisplayProps) => {
                 }
                 for (let i = 0; i < matrix.cols; i++) row[i] = value;
                 rerender();
-              }}
-            >{rowIndex}</p>
+              }}>
+              <p>{rowIndex}</p>
+            </rect>
           </div>}
           {row.map((entry, colIndex) => (
             <MatrixButton
