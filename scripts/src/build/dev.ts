@@ -112,14 +112,18 @@ const getTabContext = ({ srcDir, outDir }: ContextOptions, tabs: string[]) => es
 
 type WatchCommandInputs = {
   docs: boolean;
+  modules: string[];
+  tabs: string[];
 } & BuildCommandInputs;
 
 export const watchCommand = createBuildCommand('watch', false)
+  .option('-m, --modules [modules...]', 'Manually specify which modules to check', null)
+  .option('-t, --tabs [tabs...]', 'Manually specify which tabs to check', null)
   .description('Run esbuild in watch mode, rebuilding on every detected file system change')
   .option('--no-docs', 'Don\'t rebuild documentation')
   .action(async (opts: WatchCommandInputs) => {
     const [{ bundles, tabs }] = await Promise.all([
-      retrieveBundlesAndTabs(opts.manifest, null, null),
+      retrieveBundlesAndTabs(opts.manifest, opts.modules, opts.tabs),
       createBuildDirs(opts.outDir),
       copyManifest(opts),
     ]);
@@ -147,7 +151,7 @@ export const watchCommand = createBuildCommand('watch', false)
       opts.docs
         ? buildHtml(app, app.convert(), {
           outDir: opts.outDir,
-          modulesSpecified: false,
+          modulesSpecified: opts.modules !== null,
         })
         : Promise.resolve(null),
       bundlesContext.cancel()
